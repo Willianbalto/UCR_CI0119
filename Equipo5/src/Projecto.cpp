@@ -101,5 +101,12 @@ void loop() {
   std::cout << "Blue: " << blue << "\n";
 }
 
-//* Notas: ciertos valores no funcionan adecuadamente simulandolos sin embargo si los vemos en la realidad debido a que la temperatura no sube discretamente 
-//*deberian funcionar, ademas muchas cosas estan sujetas a optimizacion
+int main(int, char*[]){
+  setup();
+  while (true){
+    loop();
+  }
+}
+
+
+//* Notas: ciertos valores no funcionan adecuadamente simulandolos sin embargo si los vemos en la realidad debido a que la temperatura no sube discretamente deberian funcionar
