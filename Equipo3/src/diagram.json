@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "author": "Isaac Palacios, Edwin Morales",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": -47.4, "left": 172.2, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "imu1", "top": 272.62, "left": 347.92, "attrs": {} },
+    { "type": "wokwi-lcd1602", "id": "lcd1", "top": -198.17, "left": -233.6, "attrs": {} },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 109.55,
+      "left": -9.6,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -205.2,
+      "left": 109.4,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": -205.2,
+      "left": 339.8,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led3",
+      "top": -205.2,
+      "left": 205.4,
+      "attrs": { "color": "yellow" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": -120.85,
+      "left": 134.4,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": -120.85,
+      "left": 230.4,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r4",
+      "top": -120.85,
+      "left": 364.8,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": -170.4,
+      "left": 481.8,
+      "attrs": { "volume": "0.1" }
+    }
+  ],
+  "connections": [
+    [ "imu1:VCC", "uno:3.3V", "red", [ "v-9.6", "h-80.92" ] ],
+    [ "imu1:GND", "uno:GND.2", "black", [ "v-19.2", "h-61.42" ] ],
+    [ "imu1:SDA", "uno:A4", "gold", [ "v-38.4", "h34.28" ] ],
+    [ "imu1:SCL", "uno:A5", "orange", [ "v-28.8", "h34.18" ] ],
+    [ "lcd1:A", "r1:1", "green", [ "v57.6", "h47.9" ] ],
+    [ "lcd1:D7", "uno:7", "blue", [ "h297.9", "v-9.6", "h140.4" ] ],
+    [ "r1:2", "uno:5V", "green", [ "v0" ] ],
+    [ "lcd1:VDD", "uno:5V", "green", [ "v0" ] ],
+    [ "lcd1:D6", "uno:8", "gold", [ "v0" ] ],
+    [ "lcd1:D5", "uno:9", "orange", [ "v38.4", "h431.3" ] ],
+    [ "lcd1:D4", "uno:10", "red", [ "v48", "h431.3" ] ],
+    [ "lcd1:E", "uno:11", "violet", [ "v57.6", "h469.8" ] ],
+    [ "lcd1:RS", "uno:12", "purple", [ "v67.2", "h479.8" ] ],
+    [ "lcd1:K", "uno:GND.1", "black", [ "v9.6", "h345.3" ] ],
+    [ "lcd1:VSS", "uno:GND.1", "black", [ "v19.2", "h489.3" ] ],
+    [ "lcd1:RW", "uno:GND.1", "black", [ "v19.2", "h450.8" ] ],
+    [ "led1:A", "r2:1", "green", [ "v0" ] ],
+    [ "r3:1", "led3:A", "green", [ "v0" ] ],
+    [ "led2:A", "r4:1", "green", [ "v0" ] ],
+    [ "led2:C", "uno:GND.1", "green", [ "v67.2", "h-67.1" ] ],
+    [ "led3:C", "uno:GND.1", "green", [ "v67.2", "h67.3" ] ],
+    [ "led1:C", "uno:GND.1", "green", [ "v76.8", "h163.3" ] ],
+    [ "r2:2", "uno:6", "cyan", [ "v57.6", "h177.5" ] ],
+    [ "r3:2", "uno:5", "cyan", [ "v0" ] ],
+    [ "r4:2", "uno:4", "cyan", [ "v38.4", "h-33.9" ] ],
+    [ "bz1:2", "uno:3", "limegreen", [ "v0" ] ],
+    [ "bz1:1", "uno:GND.1", "black", [ "h-134.4", "v48" ] ]
+  ],
+  "dependencies": {}
+}
