@@ -3,22 +3,40 @@
 #include <LiquidCrystal.h>
 #include <Wire.h>
 
+//  Pins for each LED and the buzzer
+#define PIN_LED_GREEN 6
+#define PIN_LED_YELLOW 5
+#define PIN_LED_RED 4
+#define PIN_BUZZER 3
+
+//  Gyro measures radians, but degrees are more intuitive,
+//  so degree-equivalent constants are defined for convenience.
+#define DEGREES_45 3.14/4.0  //  Pi fourths radians. Equivalent to 45 degrees.
+#define DEGREES_90 3.14/2.0  //  Pi halves radians. Equivalent to 90 degrees.
+#define DEGREES_180 3.14  //  Pi radians. Equivalent to 180 degrees.
+#define DEGREES_270 3.0 * (3.14/2.0)  //  Three Pi halves radians. Equivalent to 270 degrees.
+
+
+
 Adafruit_MPU6050 mpu;
 LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
 
-#define LED_PINa 4
-#define LED_PINb 5
-#define LED_PINc 6
-#define Speaker 3
+
+
+//  Prints readings from sensor (acceleration and rotation) to serial monitor.
+void printMPUReadings(sensors_event_t &a, sensors_event_t &g);
+
 
 
 void setup(void) {
   Serial.begin(115200);
+
+  pinMode(PIN_LED_GREEN, OUTPUT);
+  pinMode(PIN_LED_YELLOW, OUTPUT);
+  pinMode(PIN_LED_RED, OUTPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
+
   lcd.begin(16, 2);
-  pinMode(LED_PINa, OUTPUT);
-  pinMode(LED_PINb, OUTPUT);
-  pinMode(LED_PINc, OUTPUT);
-  pinMode(Speaker, OUTPUT);
 
   while (!mpu.begin()) {
     if (!mpu.begin()) {
@@ -30,17 +48,61 @@ void setup(void) {
   Serial.println("MPU6050 ready!");
 }
 
+
+
 sensors_event_t a, g;
+
+
 
 void loop() {
 
-  for (int i = 4; i < 7; ++i) {
-    digitalWrite(i, LOW);
-  }
+  //  Turn off all LED pins.
+  digitalWrite(PIN_LED_GREEN, LOW);
+  digitalWrite(PIN_LED_YELLOW, LOW);
+  digitalWrite(PIN_LED_RED, LOW);
 
+  //  Update and print sensor readings
   mpu.getAccelerometerSensor()->getEvent(&a);
   mpu.getGyroSensor()->getEvent(&g);
+  printMPUReadings(a, g);
 
+  lcd.setCursor(2, 0);
+
+  /// Verify the angle
+  if (abs(g.gyro.x) > DEGREES_45 || abs(g.gyro.y) > DEGREES_45) {
+
+    // if angle > 90 and lesser than 270, the vehicule is lying down
+    if (abs(g.gyro.x) > DEGREES_90 || abs(g.gyro.y) > DEGREES_90) {
+      lcd.setCursor(3, 0);
+      lcd.print("Calling 911");
+      digitalWrite(PIN_LED_RED, HIGH);
+      tone(PIN_BUZZER, 250, 1000);
+      // and call the 911.....
+
+    // if not, it's because the angle is dangerous but not critical
+    } else {
+      lcd.setCursor(4, 0);
+      lcd.print("Dangerous");
+      lcd.setCursor(6, 1);
+      lcd.print("Angle");
+      digitalWrite(PIN_LED_YELLOW, HIGH);
+      tone(PIN_BUZZER, 125, 500);
+
+    }
+  } else {  // if all verification fails, is because the angle is correct
+    lcd.print("All in Order");
+    digitalWrite(PIN_LED_GREEN, HIGH);
+  }
+
+  Serial.println("");
+
+  delay(100);
+}
+
+
+
+void printMPUReadings(sensors_event_t &a, sensors_event_t &g)
+{
   Serial.print("[");
   Serial.print(millis());
   Serial.print("] X: ");
@@ -50,7 +112,7 @@ void loop() {
   Serial.print(", Z: ");
   Serial.print(a.acceleration.z);
   Serial.println(" m/s^2");
-  
+
 
   Serial.print("[");
   Serial.print(millis());
@@ -61,35 +123,4 @@ void loop() {
   Serial.print(", Z: ");
   Serial.print(g.gyro.z);
   Serial.println(" rad/s");
-  lcd.setCursor(2, 0);
-  /// Verify the angle
-  if ((g.gyro.x > 45.00) || (g.gyro.y > 45.00)
-    || (g.gyro.z > 45.00)) {
-    // if angle > 90 and lesser than 270, the vehicule is lying down
-    if (((g.gyro.x > 90.00) && (g.gyro.x < 270.00) ) ||
-      ((g.gyro.y > 90.00) && (g.gyro.y < 270.00)) ||
-      ((g.gyro.z > 90.00) && (g.gyro.z < 270.00))) {
-      lcd.setCursor(3, 0);
-      lcd.print("Calling 911");
-      digitalWrite(LED_PINa, HIGH);
-      tone(Speaker, 250, 1000);
-      // and call the 911.....
-    } else if ((g.gyro.x < 90.00) || (g.gyro.y < 90.00) 
-    || (g.gyro.z < 90.00)) {
-    // if not, is because the angle is dangerous but not critical 
-      lcd.setCursor(4, 0);
-      lcd.print("Dangerous ");
-      lcd.setCursor(6, 1);
-      lcd.print("Angle");
-      digitalWrite(LED_PINb, HIGH);
-      tone(Speaker, 125, 500);
-    }
-  } else { // if all verification fails, is because the angle is correct
-    lcd.print("All in Order");
-    digitalWrite(LED_PINc, HIGH);
-  }
-
-  Serial.println("");
-
-  delay(2000);
 }
