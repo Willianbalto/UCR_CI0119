@@ -1,30 +1,31 @@
+
 #include <LiquidCrystal.h>
 
 LiquidCrystal lcd(3, 4, 12, 13, 7, 8);
 
 const int pinPower = 2;  
 const int pinBuzzer = 11;
-
 const int pinMotor = 10;  
 const int pinGreen = 9;
 const int pinBlue = 6;
 const int pinRed = 5;
-const int pinPoten = A1;
+const int pinPoten = A1; //Potenciometro del cambio de temperatura objetivo
 const int pinSensor = A0;
-const int colors[5][3] = {{0, 14, 255}, {0, 255, 40}, {0,0,0}, {5, 225, 1}, {255, 25, 0}};
+const int colors[5][3] = {{0, 14, 255}, {0, 255, 40}, {0,0,0}, {5, 225, 1}, {255, 25, 0}}; //Colores del LED RGB
 
-int motorSpeed = 0;
-int targetTemp = 22;
-int tressholds[5] = {targetTemp - 20, targetTemp - 10, targetTemp, targetTemp + 10, targetTemp + 20};
-int alarm[5] = {1046, 523, 0, 220, 110};
-int previousTemp = targetTemp;
-//int counter = 2;
-bool buzzerStatus = 0;
-unsigned int timePass = 0;
-int c = 0;
+int motorSpeed = 0; //Usado para la velocidad del motor
+int motorState = 0; //Usado para control del cambio gradual de la temperatura del motor
+int targetTemp = 22; //Te,peratura Objetivo
+int tressholds[5] = {targetTemp - 20, targetTemp - 10, targetTemp, targetTemp + 10, targetTemp + 20}; //Limites de temperatura en orden de muy frio, frio, objetivo, caliente, muy caliente 
+int alarm[5] = {1046, 523, 0, 110, 220}; //Notas para el buzzer
+int previousTemp = targetTemp; //Temperatura anterior medida
+bool buzzerStatus = 0; //Si el buzzer encendido o no
+unsigned int timePass = 0; //Tiempo desde el ultimo tono del buzzer
+unsigned int lcdWait = 2000; //Control de la pantalla LCD
+int c = 0; //Valor actual de la temperatura leida en terminos de los intervalos
 
-volatile bool status = false;
-volatile unsigned long lastInterrupt = 0;
+volatile bool status = false; // Encender y Apagar
+volatile unsigned long lastInterrupt = 0; //Ultimo Apagado
 
 void setup() {
   Serial.begin(9600);
@@ -36,25 +37,27 @@ void setup() {
   pinMode(pinRed, OUTPUT);
   pinMode(pinBuzzer, OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(pinPower), power, CHANGE);
-
+  attachInterrupt(digitalPinToInterrupt(pinPower), power, CHANGE); //Encendido y apagado
 }
 
 void loop() {
   c = 0;
   
   int valueInput = map(analogRead(pinPoten), 0, 1023, -15, 100); //Cambia el valor de la temperatura objetivo
-  if (valueInput != targetTemp) {
+
+  if (valueInput != targetTemp) { //Cambios de intervalos de temperatura y pantalla lcd
     targetTemp = valueInput;
     for (int i = 0; i < 5; i++) {
       tressholds[i] = targetTemp - 20 + (i * 10);
     }
-    Serial.print("Start"); 
+    Serial.println("Start "); 
     
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("targetTemp: ");
     lcd.print(targetTemp);
+    lcdWait = millis();
+    Serial.print(" LcdWait :"); Serial.println(lcdWait);
   }
 
   if (!status) {
@@ -62,34 +65,8 @@ void loop() {
   }
   
   int currentTemp = map(analogRead(pinSensor), 0, 1023, 125, -55) ; 
-
-  /*Control del motor según temperatura
-  if (currentTemp > 25) {
-    motorSpeed = map(currentTemp, 26, 100, 100, 255);
-    motorSpeed = constrain(motorSpeed, 100, 255);
-  } else {
-    motorSpeed = 0; // Motor apagado
-  }
   
-
-  if (currentTemp > 25) {
-    // Rojo para temperaturas mayores a 25°C
-    red = 255;
-    green = 0;
-    blue = 0;
-  } else if (currentTemp < 15) {
-    // Azul para temperaturas menores a 15°C
-    red = 0;
-    green = 0;
-    blue = 255;
-  } else {
-    // Verde para temperaturas entre 15°C y 25°C
-    red = 0;
-    green = 255;
-    blue = 0;
-  }*/
-  
-  for(int i = 0; i < 3; i++){ //Bug
+  for(int i = 0; i < 3; i++){  //Intervalo en el que se encuentra la temperatura
     if(tressholds[i] > currentTemp){
       c=i;
       break;
@@ -100,30 +77,16 @@ void loop() {
     }
   } 
 
-  /*for(int i = 0; i < 3 && currentTemp >= tressholds[0]; i++){ //Bug
-    c++;
-    if(currentTemp >= tressholds[i] && currentTemp <= tressholds[i+1]){
-      c = i+1;
-      break;
-    }
-  }
-  if(currentTemp >= tressholds[1] && currentTemp <= tressholds[3]){
-    c = 2;
-  } else ()*/
-
-  
-  
-  /*int delta = 0;
-  if (tressholds[c] > previousTemp) delta = 1;
-  else if (tressholds[c] < previousTemp) delta = -1;*/
-  
-
-  //counter = constrain(counter, 0, 4);
-  if(previousTemp != c){
+  if(previousTemp != c){ //Cambios de LEDs
     analogWrite(pinRed, colors[c][0]);
     analogWrite(pinGreen, colors[c][1]);
     analogWrite(pinBlue, colors[c][2]);
+    
   }
+
+  //buzzer
+  buzzerControl(alarm[c], c);
+  timePass =  millis();
 
   Serial.print("c: ");
   Serial.println(c);
@@ -131,52 +94,81 @@ void loop() {
   Serial.print("tresshold: ");
   Serial.println(tressholds[c]);
 
+  //motor
   if(c == 3){
-    if(timePass >= 2000){
-      buzzerControl(alarm[c]);
-      timePass = -millis();
-    }
-    motorSpeed = 25;
+    motorState = 1;
   } else if (c == 4){
-    if(timePass >= 400){
-      buzzerControl(alarm[c]);
-      timePass = -millis();
-    }
-    motorSpeed = 50;
+    motorState = 2;
   } else {
-    noTone(pinBuzzer);
-    motorSpeed = 0;
+    motorState = 3;
   }
 
-  analogWrite(pinMotor, motorSpeed);
-    
-  printLCDSerial(currentTemp, colors[c]);
-  
-  
-  timePass = timePass + millis();
+  if(motorState){
+    motorState = motorControll(motorState);
+  }
 
+  //Print a la pantalla LCD
+  printLCDSerial(currentTemp, colors[c]);
+
+  //Setear nueva tenmperatura anterior leida
   previousTemp = c;
 }
 
-void buzzerControl(int note){
+int motorControl(int state){
+  switch (state)
+  {
+  case  1:
+    motorSpeed += 5 * (25 - motorSpeed/abs(25 - motorSpeed)); //suma o resta si esta por encima o debajo de 25
+    analogWrite(pinMotor, motorSpeed);
+    if(motorSpeed == 25){
+      state = 0 //no mas cambios al motor
+    }
+    return state;
+  
+  case 2:
+    motorSpeed += 5;
+    analogWrite(pinMotor, motorSpeed);
+    if(motorSpeed == 50){
+      state = 0
+    }
+    return state;
+
+  case 3: //apagar el motor gradualmente
+    motorSpeed -= 5;
+    if(motorSpeed == 0){
+      state = 0
+    }
+    return state;
+  }
+}
+
+void buzzerControl(int note, int interval){
   if(buzzerStatus){
-    tone(pinBuzzer, note);
+    switch (interval)
+    {
+    case 1:
+    case 3:
+      if(millis() - timePass >= 200){ //tiempo entre sonidos para frio y caliente
+        buzzerControl(alarm[c]);
+        timePass =  millis();
+      }
+      break;
+    case 0:
+    case 4:
+      if(millis() - timePass >= 50){ //tiempo entre sonidos para muy frio y muy caliente
+        buzzerControl(alarm[c]);
+        timePass =  millis();
+      }
+    break;
+    }
   } else{
     noTone(pinBuzzer);
   }
   buzzerStatus = !buzzerStatus;
 }
 
-void printLCDSerial(int currentTemp, int color[3]){
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Temp: ");
-  lcd.print(currentTemp);
-  lcd.print("C");
-  lcd.setCursor(0, 1);
-  lcd.print("Motor: ");
-  lcd.print(motorSpeed);
-  
+void printLCDSerial(int currentTemp, const int color[3]){
+  //Prints para control y debug
   Serial.print("target Temp: "); Serial.println(targetTemp);
   Serial.print("Temp: "); Serial.println(currentTemp);
   Serial.print("Motor: "); Serial.println(motorSpeed);
@@ -185,6 +177,31 @@ void printLCDSerial(int currentTemp, int color[3]){
   Serial.print(" G="); Serial.print(color[1]);
   Serial.print(" B="); Serial.println(color[2]);
   Serial.print(" TimePass :"); Serial.println(timePass);
+
+  //cuanto tiempo llevamos esperando 
+  unsigned int wait = millis() - lcdWait;
+  //LCD si es necesario cambiar toda la pantalla
+  if(wait > 2000){
+    Serial.print(" Update :"); Serial.println(wait);
+    if (lcdWait == 0){
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Temp: ");
+    } else{
+      lcd.setCursor(7, 0);
+      if(currentTemp >= 10){
+        lcd.print(0);
+      }
+    }
+    
+    //LCD general
+    lcd.print(currentTemp);
+    lcd.print("C");
+    lcd.setCursor(0, 1);
+    lcd.print("Motor: ");
+    lcd.print(motorSpeed);
+    lcdWait = 0;
+  }
 }
 
 void power() {
@@ -202,15 +219,5 @@ void power() {
 
     lcd.setCursor(0, 0);
     lcd.print("APAGADO        ");
-    delay(200);
   }
-
-  /*void phaseCorrectPWM(){
-    pinMode(3, OUTPUT);
-    pinMode(11, OUTPUT);
-    TCCR2A = _BV(COM2A0) | _BV(COM2B1) | _BV(WGM20);
-    TCCR2B = _BV(WGM22) | _BV(CS22);
-    OCR2A = 180;
-    OCR2B = 50;
-  }*/
 }
