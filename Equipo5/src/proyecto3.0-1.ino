@@ -92,8 +92,7 @@ void loop() {
   c = 0;
   
   int valueInput = map(analogReadAsm(pinPoten), 0, 1023, -15, 100); //Cambia el valor de la temperatura objetivo
-
-  Serial.println("no loop"); 
+  
   if (valueInput != targetTemp) { //Cambios de intervalos de temperatura y pantalla lcd
     targetTemp = valueInput;
     for (int i = 0; i < 5; i++) {
@@ -288,4 +287,5 @@ void power() {
     lcd.print("APAGADO        ");
   }
 }
+
 
