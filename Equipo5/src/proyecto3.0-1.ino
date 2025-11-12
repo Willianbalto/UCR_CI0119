@@ -1,4 +1,5 @@
-
+//#define analog_reference_DEFAULT
+#include <Arduino.h>
 #include <LiquidCrystal.h>
 
 LiquidCrystal lcd(3, 4, 12, 13, 7, 8);
@@ -14,7 +15,8 @@ const int pinSensor = A0;
 const int colors[5][3] = {{0, 14, 255}, {0, 255, 40}, {0,0,0}, {5, 225, 1}, {255, 25, 0}}; //Colores del LED RGB
 
 int motorSpeed = 0; //Usado para la velocidad del motor
-int motorState = 0; //Usado para control del cambio gradual de la temperatura del motor
+int motorState = 2; //Usado para control del cambio gradual de la temperatura del motor
+bool currentState = true;
 int targetTemp = 22; //Te,peratura Objetivo
 int tressholds[5] = {targetTemp - 20, targetTemp - 10, targetTemp, targetTemp + 10, targetTemp + 20}; //Limites de temperatura en orden de muy frio, frio, objetivo, caliente, muy caliente 
 int alarm[5] = {1046, 523, 0, 110, 220}; //Notas para el buzzer
@@ -40,11 +42,58 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(pinPower), power, CHANGE); //Encendido y apagado
 }
 
+int analogReadAsm(uint8_t pin)
+{
+    uint8_t low, high;
+    asm volatile (
+        // Adjust pin number (A0–A7)
+        "cpi    %[pin], 14       \n\t"
+        "brlo   1f               \n\t"
+        "subi   %[pin], 14       \n\t"
+        "1:                      \n\t"
+
+        // Enable ADC and set prescaler (ADEN + ADPS2:0 = 0b111)
+        "lds    r18, %[adcsra]   \n\t"
+        "ori    r18, 0x87        \n\t"   // 1000 0111 = ADEN + prescaler /128
+        "sts    %[adcsra], r18   \n\t"
+
+        // Configure ADMUX (REFS0 = AVcc, MUX = pin)
+        "ldi    r18, 0x40        \n\t"   // REFS0 = 1, REFS1 = 0 (AVcc ref)
+        "or     r18, %[pin]      \n\t"
+        "sts    %[admux], r18    \n\t"
+
+        // Start conversion
+        "lds    r18, %[adcsra]   \n\t"
+        "ori    r18, (1<<6)      \n\t"   // ADSC = 1
+        "sts    %[adcsra], r18   \n\t"
+
+        // Wait for ADSC to clear
+        "2:                      \n\t"
+        "lds    r18, %[adcsra]   \n\t"
+        "sbrc   r18, 6           \n\t"
+        "rjmp   2b               \n\t"
+
+        // Read result (ADCL first, then ADCH)
+        "lds    %[low],  %[adcl] \n\t"
+        "lds    %[high], %[adch] \n\t"
+        : [low] "=r" (low), [high] "=r" (high), [pin] "+r" (pin)
+        : [admux] "i" (_SFR_MEM_ADDR(ADMUX)),
+          [adcsra] "i" (_SFR_MEM_ADDR(ADCSRA)),
+          [adcl] "i" (_SFR_MEM_ADDR(ADCL)),
+          [adch] "i" (_SFR_MEM_ADDR(ADCH))
+        : "r18"
+    );
+
+    int result = (high << 8) | low;
+    return result;
+}
+
 void loop() {
   c = 0;
   
-  int valueInput = map(analogRead(pinPoten), 0, 1023, -15, 100); //Cambia el valor de la temperatura objetivo
+  int valueInput = map(analogReadAsm(pinPoten), 0, 1023, -15, 100); //Cambia el valor de la temperatura objetivo
 
+  Serial.println("no loop"); 
   if (valueInput != targetTemp) { //Cambios de intervalos de temperatura y pantalla lcd
     targetTemp = valueInput;
     for (int i = 0; i < 5; i++) {
@@ -64,7 +113,7 @@ void loop() {
     return; // no sigue si está apagado
   }
   
-  int currentTemp = map(analogRead(pinSensor), 0, 1023, 125, -55) ; 
+  int currentTemp = map(analogReadAsm(pinSensor), 0, 1023, 125, -55) ; 
   
   for(int i = 0; i < 3; i++){  //Intervalo en el que se encuentra la temperatura
     if(tressholds[i] > currentTemp){
@@ -82,6 +131,8 @@ void loop() {
     analogWrite(pinGreen, colors[c][1]);
     analogWrite(pinBlue, colors[c][2]);
     
+
+    currentState = 1;// para el motor, nos ahorra un if
   }
 
   //buzzer
@@ -102,9 +153,8 @@ void loop() {
   } else {
     motorState = 3;
   }
-
-  if(motorState){
-    motorState = motorControll(motorState);
+  if(currentState){
+    currentState = motorControll(motorState);
   }
 
   //Print a la pantalla LCD
@@ -114,57 +164,74 @@ void loop() {
   previousTemp = c;
 }
 
-int motorControl(int state){
+bool motorControll(int state){
   switch (state)
   {
   case  1:
-    motorSpeed += 5 * (25 - motorSpeed/abs(25 - motorSpeed)); //suma o resta si esta por encima o debajo de 25
-    analogWrite(pinMotor, motorSpeed);
-    if(motorSpeed == 25){
-      state = 0 //no mas cambios al motor
+    motorSpeed += 5 * ((25 - motorSpeed)/abs(25 - motorSpeed)); //suma o resta si esta por encima o debajo de 25
+    
+    if(motorSpeed >= 25){
+      state = 0; //no mas cambios al motor
+      motorSpeed = 25;
     }
+    analogWrite(pinMotor, motorSpeed);
     return state;
   
   case 2:
     motorSpeed += 5;
-    analogWrite(pinMotor, motorSpeed);
-    if(motorSpeed == 50){
-      state = 0
+    if(motorSpeed >= 50){
+      state = 0;
+      motorSpeed = 50;
     }
+    analogWrite(pinMotor, motorSpeed);
     return state;
 
   case 3: //apagar el motor gradualmente
     motorSpeed -= 5;
-    if(motorSpeed == 0){
-      state = 0
+    if(motorSpeed <= 0){
+      state = 0;
+      motorSpeed = 0;
     }
+    analogWrite(pinMotor, motorSpeed);
     return state;
   }
 }
 
 void buzzerControl(int note, int interval){
-  if(buzzerStatus){
-    switch (interval)
-    {
+  Serial.print("interval: ");
+  Serial.println(interval);
+  switch (interval) {
     case 1:
     case 3:
-      if(millis() - timePass >= 200){ //tiempo entre sonidos para frio y caliente
-        buzzerControl(alarm[c]);
-        timePass =  millis();
+      if (millis() - timePass >= 100) {  //tiempo entre sonidos para frio y caliente
+        if (buzzerStatus) {
+          tone(pinBuzzer, alarm[c]);
+        } else {
+          noTone(pinBuzzer);
+        }
+        buzzerStatus = !buzzerStatus;
+
+        timePass = millis();
       }
       break;
     case 0:
     case 4:
-      if(millis() - timePass >= 50){ //tiempo entre sonidos para muy frio y muy caliente
-        buzzerControl(alarm[c]);
-        timePass =  millis();
+      if (millis() - timePass >= 50) {  //tiempo entre sonidos para muy frio y muy caliente
+        if (buzzerStatus) {
+          tone(pinBuzzer, alarm[c]);
+        } else {
+          noTone(pinBuzzer);
+        }
+        buzzerStatus = !buzzerStatus;
+
+        timePass = millis();
       }
-    break;
-    }
-  } else{
-    noTone(pinBuzzer);
+      break;
+    default:
+      noTone(pinBuzzer);
+      break;
   }
-  buzzerStatus = !buzzerStatus;
+  
 }
 
 void printLCDSerial(int currentTemp, const int color[3]){
@@ -211,13 +278,14 @@ void power() {
     lastInterrupt = now;
 
     //Refactorizacion para que no lo haga en cada loop
-    analogWrite(pinRed, 0);
-    analogWrite(pinGreen, 0);
-    analogWrite(pinBlue, 0);
-    analogWrite(pinMotor, 0);
+    analogWrite(pinRed, LOW);
+    analogWrite(pinGreen, LOW);
+    analogWrite(pinBlue, LOW);
+    analogWrite(pinMotor, LOW);
     noTone(pinBuzzer);
 
     lcd.setCursor(0, 0);
     lcd.print("APAGADO        ");
   }
 }
+
