@@ -5,9 +5,9 @@
 // TODO: Cambiar de datatype a #define cuando se tenga los
 // componentes a mano
 const int flameSensor0to60 = 6;
-const int flameSensor60to120 = 1; 
+const int flameSensor60to120 = 13; 
 const int tmpPin = A0;
-const float baselineTemp = 24.0;
+float baselineTemp = 0;
  
 // Declaración de Servo
 Servo extinguishServo;
@@ -45,6 +45,31 @@ void setup()
   lcd.clear();
 
   analogWrite(10, 1024.0);
+
+    // Referencia AVcc (5V)
+  ADMUX = (1 << REFS0);
+  // Prescaler de la divsión a 32, no es necesario precisión completa
+  ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS0);
+  // Descartar primera lectura para evitar delay de estabilización
+  ADCSRA |= (1 << ADSC);
+  while (ADCSRA & (1 << ADSC)){}
+  volatile int rejectedRead = ADCL | (ADCH << 8);
+  // Autocalibrador para el sensor de temperatura, durante 5 segundos captura la 
+  // temperatura más alta y le suma 2 como margen.
+  while (millis() < 5000){
+      // Comenzar lectura
+    ADCSRA |= (1 << ADSC);
+    // Esperar mientras el bit de terminar lectura se apaga
+    while (ADCSRA & (1 << ADSC)){}
+    // Guardar el voltaje a digital
+    int val = ADCL | (ADCH << 8);
+    float temp = (((val/1024.0) * 5.0) - .5) * 100;
+    if (temp > baselineTemp){
+     baselineTemp = temp; 
+    }
+  }
+  baselineTemp += 2;
+
 }
 
 void loop()
@@ -99,7 +124,6 @@ void loop()
       break;
   }
   
-  //TODO: Implementar las alarmas del buzzer y los mensajes por LCD
 }
 
 // Metodo que revisa si hay alguna llama en los 60° de rango de cada sensor
@@ -124,13 +148,7 @@ int isThereAFlame(){
     Serial.println("Se detectó una llama con sensor 2");
     foundFlame = 1;
   }
-  //if (digitalRead(flameSensor120to180) == HIGH){
-  //  Serial.println("Se detectó una llama con sensor 3");
-  //	detectedFlames[2] = 1;
-  //  foundFlame = 1;
-  //}
   
-  //TODO: eliminar delay, unicamente para probar funcionamiento de lógica
   delay(2000);
   
   // Si algún sensor encontró una llama retornar 1, de lo contrario 0
@@ -144,10 +162,18 @@ int isThereAFlame(){
 // Metodo que revisa la temperatura ambiente creada por la llama, si está por
 // encima de un valor x activa una alarma de llama intensa.
 void flameAlarm(){
-  // TODO: Cambiar tempPin por el valor de temperatura y definir el rango
-  // "llama peligrosa".
-  int sensorVal = analogRead(tmpPin);
-  float temp = (((sensorVal/1024.0) * 5.0) - .5) * 100;
+  int inicio = micros();
+  // Comenzar lectura
+  ADCSRA |= (1 << ADSC);
+  // Esperar mientras el bit de terminar lectura se apaga
+  while (ADCSRA & (1 << ADSC)){}
+  // Guardar el voltaje a digital
+  int val = ADCL | (ADCH << 8);
+  int Final = micros();
+
+ Serial.print("microsegundos usados en la conversión: " );
+ Serial.println(Final-inicio);
+  float temp = (((val/1024.0) * 5.0) - .5) * 100;
   // Si la temperatura es mayor igual a x activar la alarma.
   Serial.println(temp);
   if (temp >= baselineTemp) {
@@ -166,8 +192,6 @@ void flameAlarm(){
 // Metodo encargado de mover el servo para extinguir cada una de las llamas presentes
 // detectadas en un estado anterior
 void extinguishFlames(){
-  // TODO: Programar el movimiento del servo, al llegar a la posición destino
-  // girar 60° a la derecha a una velocidad eficiente. Propuesta: 60° en 10s
   
   // Si alguna llama ha sido detectado por algún sensor, mover el
   // servo a la posición del sensor que detectó de la llama y extinguir
@@ -187,16 +211,10 @@ void extinguishFlames(){
     Serial.println("Extinguiendo llama de 60° a 120°");
     rotateServo(90);
   }
-  //TODO: eliminar delay, unicamente para probar funcionamiento de lógica
+
   delay(1000);
   
-  //if (detectedFlames[2]){
-  //  detectedFlames[2] = 0;
-  //  Serial.println("Moviendo servo a 120°");
-  //  Serial.println("Extinguiendo llama de 120° a 180°");
-  //  rotateServo(120);
-  //}
-  //TODO: eliminar delay, unicamente para probar funcionamiento de lógica
+  
   delay(1000);
 }
 
@@ -225,33 +243,8 @@ void rotateServo(int angle){
     delay(50);
   }
 
-  // scroll 13 positions (string length) to the left
-  // to move it offscreen left:
-  for (int positionCounter = 0; positionCounter < 13; positionCounter++) {
-    // scroll one position left:
-    lcd.scrollDisplayLeft();
-    // wait a bit:
-    delay(150);
-  }
-
-  // scroll 29 positions (string length + display length) to the right
-  // to move it offscreen right:
-  for (int positionCounter = 0; positionCounter < 29; positionCounter++) {
-    // scroll one position right:
-    lcd.scrollDisplayRight();
-    // wait a bit:
-    delay(150);
-  }
-
-  // scroll 16 positions (display length + string length) to the left
-  // to move it back to center:
-  for (int positionCounter = 0; positionCounter < 16; positionCounter++) {
-    // scroll one position left:
-    lcd.scrollDisplayLeft();
-    // wait a bit:
-    delay(150);
-  }
-
+  
   // delay at the end of the full loop:
   delay(1000);
 }
+
