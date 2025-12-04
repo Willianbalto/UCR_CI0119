@@ -2,8 +2,6 @@
 #include <Servo.h>
 #include <LiquidCrystal.h>
 // Definición de los pines para cada entrada y salida
-// TODO: Cambiar de datatype a #define cuando se tenga los
-// componentes a mano
 const int flameSensor0to60 = 6;
 const int flameSensor60to120 = 13; 
 const int tmpPin = A0;
@@ -23,8 +21,7 @@ States currentState = SEARCHING_FLAMES;
 // una llama
 int detectedFlames[2];
 
-// initialize the library by associating any needed LCD interface pin
-// with the arduino pin number it is connected to
+// inicializar la libreria necesaria para controlar la pantalla lcd
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
@@ -36,7 +33,7 @@ void setup()
   pinMode(flameSensor0to60, INPUT);
   pinMode(flameSensor60to120, INPUT);
 
-  // set up the LCD's number of columns and rows:
+  // configurar las filas y columnas de la pantalla
   lcd.begin(16, 2);
   // Mensaje inicial
   lcd.clear();
@@ -48,7 +45,7 @@ void setup()
 
     // Referencia AVcc (5V)
   ADMUX = (1 << REFS0);
-  // Prescaler de la divsión a 32, no es necesario precisión completa
+  // Reescalado de la divsión a 32, no es necesario precisión completa
   ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS0);
   // Descartar primera lectura para evitar delay de estabilización
   ADCSRA |= (1 << ADSC);
@@ -74,8 +71,6 @@ void setup()
 
 void loop()
 {
-  // Crear una simulación para cada bucle.
-  //simulation();
   // Switch-case de estados
   switch (currentState){
     case SEARCHING_FLAMES:
@@ -130,9 +125,6 @@ void loop()
 // "enciende" una celda de un arreglo correspondiente al sensor que detectó
 // la llama. Retorna 1 si alguna llama se detectó, de lo contrario 0.
 int isThereAFlame(){
-  // TODO: Cambiar los parametros de los if a digitalRead 
-  // cuando se conecten los sensores
-  
   // Variable para revisar si al menos se ha encontrado una llama
   int foundFlame = 0;
   // Si es detectada una llama por alguno de los sensores, "encender" su
@@ -185,7 +177,6 @@ void flameAlarm(){
     }
   }
   
-  //TODO: eliminar delay, unicamente para probar funcionamiento de lógica
   delay(2000);
 }
 
@@ -202,7 +193,7 @@ void extinguishFlames(){
     Serial.println("Extinguiendo llama de 0° a 60°");
     rotateServo(0);
   }
-  //TODO: eliminar delay, unicamente para probar funcionamiento de lógica
+
   delay(1000);
   
   if (detectedFlames[1]){
@@ -212,10 +203,8 @@ void extinguishFlames(){
     rotateServo(90);
   }
 
-  delay(1000);
-  
-  
-  delay(1000);
+  delay(2000);
+
 }
 
 // Simula el input de distintos sensores para cambiar estados.
@@ -226,25 +215,22 @@ void simulation(){
   //tmpPin = random(100);
 }
 
+// Metodo encargado para rotar el brazo del motor servo 90 grados a la izquierda y a la derecha
+// Recibe el angulo en el cual inicia el brazo del motor
 void rotateServo(int angle){
   extinguishServo.write(angle);
   delay(20);
   for (int i = 0; i < 90; i++){
-    //Serial.println(angle);
     angle += 1;
     extinguishServo.write(angle);
     delay(50);
   }
   
   for (int i = 0; i < 90; i++){
-    //Serial.println(angle);
     angle -= 1;
     extinguishServo.write(angle);
     delay(50);
   }
-
-  
-  // delay at the end of the full loop:
   delay(1000);
 }
 
