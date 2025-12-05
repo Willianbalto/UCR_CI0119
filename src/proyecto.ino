@@ -1,149 +1,80 @@
-// Proyecto: Encender luz y ventilador con aplauso
+#include <LiquidCrystal.h>
 
-// Canal 1: Luz
-// Canal 2: Ventilador
+// sensibilidad baja ya que sensores detectan del 1-8 aprox en pruebas
+const int sens1 = 2;   
+const int sens2 = 2;   
+const int lecturas = 150;
 
-// Variables globales
+LiquidCrystal lcd(13, 12, 5, 4, 3, 2); // pines del LCD
 
-int canalActivo = 1;            // Canal actualmente activo (1 = Luz, 2 = Ventilador)
-bool luzEncendida = false;      // Estado actual de la luz (false = apagada, true = encendida)
-bool ventiladorEncendido = false; // Estado actual del ventilador
+const int sensor1 = A0;
+const int sensor2 = A1;
+const int LED1 = 7;
+const int LED2 = 6;
+const int BTN  = 8;
+// const int FAN  = 10; // ventilador no conectado todavía
 
-// Prototipos de funciones
+int modo = 0; // 0=LED, 1=VENT
 
-void ElegirCanal(String comando);  // Selecciona canal directamente
-void CambiarCanal();               // Cambia canal (simula botón)
-void Ventilador();                 // Alterna estado del ventilador
-void Luces();                      // Alterna estado de la luz
-void ImprimirEstado();             // Muestra en Serial los estados actuales
-bool EstadoV();                    // Devuelve estado actual del ventilador
-bool EstadoL();                    // Devuelve estado actual de la luz
-
-// Configuración inicial (setup)
+int medirNivel(int pin) {
+  int vMax = 0;
+  int vMin = 1023;
+  for (int i = 0; i < lecturas; i++) {
+    int v = analogRead(pin);
+    if (v > vMax) vMax = v;
+    if (v < vMin) vMin = v;
+  }
+  return (vMax - vMin);
+}
 
 void setup() {
-  Serial.begin(9600);   // Inicializamos comunicación Serial con PC
-  Serial.println("--- Proyecto Aplausos ---");
-  Serial.println("Canal inicial: LUZ");
-  Serial.println("Opciones:");
-  Serial.println("canal1 -> seleccionar canal de luz");
-  Serial.println("canal2 -> seleccionar canal de ventilador");
-  Serial.println("b -> cambiar de canal (simula botón)");
-  Serial.println("aplauso -> enciende o apaga");
-  Serial.println("estado -> imprime estado actual");
-  ImprimirEstado(); 
-}
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  // pinMode(FAN, OUTPUT); // ventilador no usado aún
+  pinMode(BTN, INPUT_PULLUP);
 
-// Bucle principal (loop)
+  lcd.begin(16, 2);
+}
 
 void loop() {
-  // Verificamos si hay datos disponibles en el monitor serial
-  if (Serial.available()) {
-    String comando = Serial.readStringUntil('\n'); // Leemos hasta salto de línea
-    comando.trim(); // Quitamos espacios extra
-    
-    if (comando == "canal1" || comando == "canal2") {
-      ElegirCanal(comando);
-    } 
-    else if (comando == "b") {
-      CambiarCanal();
-    }
-    else if (comando == "aplauso") {
-      // Según el canal activo, se controla luz o ventilador
-      if (canalActivo == 1) {
-        Luces();
-      } else {
-        Ventilador();
-      }
-    }
-    else if (comando == "estado") {
-      ImprimirEstado();
-    }
-    else {
-      Serial.println("Comando no reconocido.");
-    }
+  // cambio de modo con el botón
+  if (digitalRead(BTN) == LOW) {
+    modo = 1 - modo;  // alterna entre LED y VENT
+    delay(200);       
+    while (digitalRead(BTN) == LOW); 
   }
+
+  int nivel1 = medirNivel(sensor1);
+  int nivel2 = medirNivel(sensor2);
+  
+  bool led1On = (nivel1 > sens1);
+  bool led2On = (nivel2 > sens2);
+  if (modo == 0) {   // Sensor 1 
+    digitalWrite(LED1, led1On);
+    digitalWrite(LED2, LOW);
+  } else {           // Sensor 2 
+    digitalWrite(LED1, LOW);
+    digitalWrite(LED2, led2On);
+  }
+
+// LCD
+// Primera fila: Sensor 1 y LED 1
+lcd.setCursor(0, 0);  // fila 0, columna 0
+if (modo == 0) {
+  lcd.print("S1:ON LED1:ON   "); // espacios al final para limpiar
+} else {
+  lcd.print("S1:OFF LED1:OFF     ");
 }
 
-// Funciones de control
-
-// Selecciona directamente el canal (1 o 2) según el comando recibido
-void ElegirCanal(String comando){
-  if (comando == "canal1"){
-    canalActivo = 1;
-    Serial.println("Canal seleccionado: Luz");
-  } else if (comando == "canal2"){
-    canalActivo = 2;
-    Serial.println("Canal seleccionado: Ventilador");
-  }
+// Segunda fila: Sensor 2 y LED 2
+lcd.setCursor(0, 1);  // fila 1, columna 0
+if (modo == 0) {
+  lcd.print("S2:OFF LED2:OFF    ");
+} else {
+  lcd.print("S2:ON LED2:ON    ");
 }
 
-// Cambia de canal (simula un botón físico que alterna entre luz y ventilador)
-void CambiarCanal(){
-  if (canalActivo == 1){
-    canalActivo = 2;
-    Serial.println("Canal cambiado a: Ventilador");
-  } else {
-    canalActivo = 1;
-    Serial.println("Canal cambiado a: Luz");
-  }
-}
 
-// Alterna el estado de la luz con cada "aplauso"
-void Luces(){
-  luzEncendida = !luzEncendida;  // Cambia de apagada a encendida y viceversa
-  if (luzEncendida) {
-    Serial.println("Luz encendida");
-  } else {
-    Serial.println("Luz apagada");
-  }
-}
-
-// Alterna el estado del ventilador con cada "aplauso"
-void Ventilador(){
-  ventiladorEncendido = !ventiladorEncendido;
-  if (ventiladorEncendido) {
-    Serial.println("Ventilador encendido");
-  } else {
-    Serial.println("Ventilador apagado");
-  }
-}
-
-// Imprime el estado actual de cada dispositivo
-void ImprimirEstado(){
-  Serial.println("------ ESTADO ACTUAL ------");
-
-  // Canal activo
-  if (canalActivo == 1){
-    Serial.println("Canal activo: Luz");
-  } else {
-    Serial.println("Canal activo: Ventilador");
-  }
-
-  // Estado de la luz
-  Serial.print("Luz: ");
-  if (EstadoL()){
-    Serial.println("Encendida");
-  } else {
-    Serial.println("Apagada");
-  }
-
-  // Estado del ventilador
-  Serial.print("Ventilador: ");
-  if (EstadoV()){
-    Serial.println("Encendido");
-  } else {
-    Serial.println("Apagado");
-  }
-  Serial.println("---------------------------");
-}
-
-// Devuelve true si la luz está encendida
-bool EstadoL(){
-  return luzEncendida;
-}
-
-// Devuelve true si el ventilador está encendido
-bool EstadoV(){
-  return ventiladorEncendido;
+ 
+  delay(200); 
 }
